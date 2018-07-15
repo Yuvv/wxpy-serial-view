@@ -10,6 +10,11 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DEBUG = False
 
+# 数据队列长度
+QUEUE_SIZE = 5000
+# 图片更新时间(毫秒)
+UPDATE_INTERVAL = 5000
+
 # 串口相关配置
 SERIAL_PORT = '/dev/ttyUSB0'
 SERIAL_BAUD_RATE = 115200

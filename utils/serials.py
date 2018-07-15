@@ -5,36 +5,41 @@
 # @Date   : 2018/7/14
 
 import logging
-import traceback
+import threading
+import struct
 
 import serial
-from serial.threaded import LineReader, ReaderThread
 
 
-class SerialListener(LineReader):
-    def connection_made(self, transport):
-        super(SerialListener, self).connection_made(transport)
-        logging.info('port opened.')
-        self.write_line('hello world')
-
-    def handle_line(self, data):
-        logging.info('line received: {}\n'.format(repr(data)))
-
-    def connection_lost(self, exc):
-        if exc:
-            traceback.print_exc(exc)
-
-        logging.info('port closed\n')
+def handle_data(data):
+    tunnel1_h, tunnel1_m, tunnel1_l, tunnel2_h, tunnel2_m, tunnel2_l = struct.unpack('bbbbbb', data)
+    logging.info(tunnel1_h, tunnel1_m, tunnel1_l,
+                 tunnel2_h, tunnel2_m, tunnel2_l)
 
 
-def start_a_listener(**kwargs):
-    ser = serial.serial_for_url('loop://', **kwargs)
-    # with ReaderThread(ser, SerialListener) as reader:
-    #     # run loop
-    #     reader.run()
-    reader = ReaderThread(ser, SerialListener)
-    reader.run()
+def read_from_serial_port(ser, handler):
+    while True:
+        reading = ser.readline()
+        if not reading.endswith(b'\r\n') or len(reading) != 8:
+            continue
+
+        reading = reading[:-2]
+
+        logging.info(f'{len(reading)} data received: {reading}')
+        handler(reading)
+
+
+def start_a_listener(data_handler=handle_data, **kwargs):
+    ser = serial.Serial(**kwargs)
+    thread = threading.Thread(target=read_from_serial_port,
+                              args=(ser, data_handler))
+    thread.start()
+    logging.info('listener thread started...')
+    return thread
 
 
 if __name__ == '__main__':
-    start_a_listener(baudrate=115200, timeout=1)
+    import settings
+
+    start_a_listener(port=settings.SERIAL_PORT,
+                     baudrate=settings.SERIAL_BAUD_RATE)

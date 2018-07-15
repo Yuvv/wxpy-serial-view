@@ -12,10 +12,10 @@ import wx
 import settings
 
 
-class NumberValidator(wx.PyValidator):
+class NumberValidator(wx.Validator):
 
     def __init__(self, min_value=None, max_value=None):
-        wx.PyValidator.__init__(self)
+        wx.Validator.__init__(self)
         self.min_value = min_value
         self.max_value = max_value
         self.Bind(wx.EVT_CHAR, self.OnChar)
@@ -52,7 +52,7 @@ class NumberValidator(wx.PyValidator):
         keycode = int(event.GetKeyCode())
         if keycode < 256:
             key = chr(keycode)
-            if key != '.' and key not in string.digits:
+            if key not in string.digits + '.+-':
                 return
         event.Skip()
 

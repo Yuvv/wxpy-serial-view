@@ -6,3 +6,5 @@
 
 
 DEBUG = True
+
+SERIAL_PORT = 'COM5'

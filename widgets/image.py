@@ -15,6 +15,7 @@ class ImagePanel(wx.Panel):
     def __init__(self, image: wx.Image, **kwargs):
         wx.Panel.__init__(self, **kwargs)
         self.padding = 10
+        self._data = None
 
         lg_font = self.GetFont()
         lg_font.PointSize += 5
@@ -31,6 +32,9 @@ class ImagePanel(wx.Panel):
                          st_title.GetSize()[1] + bitmap.GetHeight() + self.padding * 3))
 
         self.Bind(wx.EVT_MOUSEWHEEL, self.on_mousewheel_scroll, self.bmp)
+
+    def get_data(self):
+        return self._data
 
     def scale_bitmap(self, img: wx.Image):
         def get_new_size(_ow, _oh, _w, _h, on_w):
@@ -69,11 +73,12 @@ class ImagePanel(wx.Panel):
         return bitmap
 
     def update_image(self, data):
+        self._data = data
         img_bytes = draw_image(data)
-        img = wx.ImageFromStream(img_bytes)
+        img = wx.Image(img_bytes)
         bitmap = img.ConvertToBitmap()
         self.bmp.SetBitmap(bitmap)
-        logging.info(f'{self.GetName()}\'s data updated with {data}')
+        logging.debug(f'{self.GetName()}\'s data updated with {data}')
 
     def on_mousewheel_scroll(self, event):
         """
