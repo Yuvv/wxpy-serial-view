@@ -80,6 +80,11 @@ class ImagePanel(wx.Panel):
         self.bmp.SetBitmap(bitmap)
         logging.debug(f'{self.GetName()}\'s data updated with {data}')
 
+    def save_data(self, filepath):
+        with open(filepath, 'w') as f:
+            for d in self._data:
+                f.write(f'{d}\n')
+
     def on_mousewheel_scroll(self, event):
         """
         todo；鼠标滚轮滚动时间处理

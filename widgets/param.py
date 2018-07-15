@@ -6,6 +6,7 @@
 
 import logging
 import string
+from datetime import datetime
 
 import wx
 
@@ -50,10 +51,10 @@ class NumberValidator(wx.Validator):
 
     def OnChar(self, event):
         keycode = int(event.GetKeyCode())
-        if keycode < 256:
-            key = chr(keycode)
-            if key not in string.digits + '.+-':
-                return
+        # if keycode < 256:
+        #     key = chr(keycode)
+        #     if key not in string.digits + '.+-':
+        #         return
         event.Skip()
 
 
@@ -135,11 +136,36 @@ class ParamPanel(wx.Panel):
         self.Bind(wx.EVT_BUTTON, self.on_set, self.btn_ok, id=wx.ID_OK)
 
     def on_set(self, event):
-        sample_len = int(self.tc_sample_len.GetValue())
-        f_calibration = float(self.tc_f_calibration.GetValue())
-        a_calibration = float(self.tc_a_calibration.GetValue())
+        sample_len = self.get_sample_len()
+        f_calibration = self.get_f_calibration()
+        a_calibration = self.get_a_calibration()
 
         self.GetParent().set_setting_values(sample_len,
                                             f_calibration,
                                             a_calibration)
+        self.GetParent().SetStatusText(f"Start sampling at {datetime.now():%Y-%m-%d %H:%M:%S}")
         logging.info(f'Set sample_len={sample_len}, f_calibration={f_calibration}, a_a_calibration={a_calibration}')
+
+    def get_sample_len(self):
+        return int(self.tc_sample_len.GetValue())
+
+    def set_sample_len(self, sample_len):
+        self.tc_sample_len.SetValue(f'{sample_len}')
+
+    def get_f_calibration(self):
+        return float(self.tc_f_calibration.GetValue())
+
+    def set_f_calibration(self, f_calibration):
+        self.tc_f_calibration.SetValue(f'{f_calibration}')
+
+    def get_a_calibration(self):
+        return float(self.tc_a_calibration.GetValue())
+
+    def set_a_calibration(self, a_calibration):
+        self.tc_f_calibration.SetValue(f'{a_calibration}')
+
+    def get_project_name(self):
+        return self.st_project_name.GetLabelText()
+
+    def set_project_name(self, text):
+        self.st_project_name.SetLabelText(text)
