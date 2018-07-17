@@ -12,9 +12,12 @@ from utils.fft import draw_image
 
 
 class ImagePanel(wx.Panel):
-    def __init__(self, image: wx.Image, **kwargs):
+    def __init__(self, image: wx.Image, x_label=None, y_label=None, title=None, **kwargs):
         wx.Panel.__init__(self, **kwargs)
         self.padding = 10
+        self._x_label = x_label
+        self._y_label = y_label
+        self._title = title
         self._data = None
 
         lg_font = self.GetFont()
@@ -74,7 +77,7 @@ class ImagePanel(wx.Panel):
 
     def update_image(self, data):
         self._data = data
-        img_bytes = draw_image(data)
+        img_bytes = draw_image(data, self._x_label, self._y_label, self._data)
         img = wx.Image(img_bytes)
         bitmap = img.ConvertToBitmap()
         self.bmp.SetBitmap(bitmap)

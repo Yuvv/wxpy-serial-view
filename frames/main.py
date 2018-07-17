@@ -16,7 +16,7 @@ import numpy as np
 
 import settings
 from widgets import ImagePanel, ParamPanel
-from utils.serials import start_a_listener, LineReaderThread
+from utils.serials import LineReaderThread
 
 
 class MainFrame(wx.Frame):
@@ -27,10 +27,14 @@ class MainFrame(wx.Frame):
 
         default_image = wx.Image(os.path.join(settings.BASE_DIR, 'resources/img/default.jpg'))
 
-        self.f_img_panel = ImagePanel(default_image, parent=self, name='力')
-        self.f_fft_img_panel = ImagePanel(default_image, parent=self, name='FFT-力')
-        self.a_img_panel = ImagePanel(default_image, parent=self, name='加速度')
-        self.a_fft_img_panel = ImagePanel(default_image, parent=self, name='FFT-加速度')
+        self.f_img_panel = ImagePanel(default_image,  y_label='V',
+                                      parent=self, name='力')
+        self.f_fft_img_panel = ImagePanel(default_image, x_label='Freq',
+                                          parent=self, name='FFT-力')
+        self.a_img_panel = ImagePanel(default_image, y_label='V',
+                                      parent=self, name='加速度')
+        self.a_fft_img_panel = ImagePanel(default_image, x_label='Freq',
+                                          parent=self, name='FFT-加速度')
 
         box = wx.BoxSizer(wx.HORIZONTAL)
         box.AddStretchSpacer()
@@ -124,34 +128,45 @@ class MainFrame(wx.Frame):
     #     self.timer_update.Stop()
 
     def on_data_received(self, data):
-        if self._sample_len < 0:
+        if self._sample_len <= 0:
             return
         if len(data) != 6:
             logging.error('data not 6 bytes!')
             return
         t1_h, t1_m, t1_l, t2_h, t2_m, t2_l = struct.unpack('bbbbbb', data)
-        # tunnel 1
         logging.info(f'data: {t1_h}, {t1_m}, {t1_l}, {t2_h}, {t2_m}, {t2_l}')
-        self.f_queue.put_nowait(t1_h)
-        self.f_queue.put_nowait(t1_m)
-        self.f_queue.put_nowait(t1_l)
+        t1_data = (t1_h & 0x7F < 16) + (t1_m < 8) + t1_l
+        t1_data = t1_data * 2.5 / (2**23)
+        if (t1_h & 0x80) > 0:
+            t1_data = -t1_data
+        t2_data = (t2_h & 0x7F < 16) + (t2_m < 8) + t2_l
+        t2_data = t2_data * 2.5 / (2 ** 23)
+        if (t2_h & 0x80) > 0:
+            t2_data = -t2_data
+        logging.info('tunnel1: {t1_data}, tunnel2: {t2_data}')
+        # tunnel 1
+        self.f_queue.put_nowait(t1_data)
         # tunnel 2
-        self.a_queue.put_nowait(t2_h)
-        self.a_queue.put_nowait(t2_m)
-        self.a_queue.put_nowait(t2_l)
+        self.a_queue.put_nowait(t2_data)
         # sample_len - 1
         self.decrease_sample_len()
 
     def on_data_receive_end(self):
         sample_len = self.param_panel.get_sample_len()
         f_data = [self.f_queue.get_nowait() + self._f_calibration for _ in range(sample_len)]
-        f_data_fft = np.fft.fft(f_data)
+        f_data_fft = np.fft.rfft(f_data)
         a_data = [self.a_queue.get_nowait() + self._a_calibration for _ in range(sample_len)]
-        a_data_fft = np.fft.fft(a_data)
+        a_data_fft = np.fft.rfft(a_data)
         self.f_img_panel.update_image(f_data)
-        self.f_fft_img_panel.update_image(f_data_fft)
+        if np.iscomplexobj(f_data_fft):
+            self.f_fft_img_panel.update_image([d.real for d in f_data_fft])
+        else:
+            self.f_fft_img_panel.update_image(f_data_fft[:self._sample_len // 2])
         self.a_img_panel.update_image(a_data)
-        self.a_fft_img_panel.update_image(a_data_fft)
+        if np.iscomplexobj(a_data_fft):
+            self.a_fft_img_panel.update_image([d.real for d in a_data_fft])
+        else:
+            self.a_fft_img_panel.update_image(a_data_fft[:self._sample_len // 2])
 
     def on_save_data(self, event):
         file_path = wx.SaveFileSelector(what='Where to save', extension='.dat',
