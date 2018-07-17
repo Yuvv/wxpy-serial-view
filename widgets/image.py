@@ -81,12 +81,12 @@ class ImagePanel(wx.Panel):
         img = wx.Image(img_bytes)
         bitmap = img.ConvertToBitmap()
         self.bmp.SetBitmap(bitmap)
-        logging.debug(f'{self.GetName()}\'s data updated with {data}')
+        logging.debug('%s\'s data updated with %s', self.GetName(), str(data))
 
     def save_data(self, filepath):
         with open(filepath, 'w') as f:
             for d in self._data:
-                f.write(f'{d}\n')
+                f.write(str(d) + '\n')
 
     def on_mousewheel_scroll(self, event):
         """

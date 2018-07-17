@@ -82,7 +82,7 @@ def read_from_serial_port(ser, handler):
 
         reading = reading[:-2]
 
-        logging.info(f'{len(reading)} data received: {reading}')
+        logging.info('%s data received: %s', len(reading), str(reading))
         handler(reading)
 
 

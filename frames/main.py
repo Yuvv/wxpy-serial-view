@@ -134,7 +134,7 @@ class MainFrame(wx.Frame):
             logging.error('data not 6 bytes!')
             return
         t1_h, t1_m, t1_l, t2_h, t2_m, t2_l = struct.unpack('bbbbbb', data)
-        logging.info(f'data: {t1_h}, {t1_m}, {t1_l}, {t2_h}, {t2_m}, {t2_l}')
+        logging.info('data: %d, %d, %d, %d, %d, %d', t1_h, t1_m, t1_l, t2_h, t2_m, t2_l)
         t1_data = (t1_h & 0x7F < 16) + (t1_m < 8) + t1_l
         t1_data = t1_data * 2.5 / (2**23)
         if (t1_h & 0x80) > 0:
@@ -143,7 +143,7 @@ class MainFrame(wx.Frame):
         t2_data = t2_data * 2.5 / (2 ** 23)
         if (t2_h & 0x80) > 0:
             t2_data = -t2_data
-        logging.info('tunnel1: {t1_data}, tunnel2: {t2_data}')
+        logging.info('tunnel1: %f, tunnel2: %f', t1_data, t2_data)
         # tunnel 1
         self.f_queue.put_nowait(t1_data)
         # tunnel 2
@@ -178,10 +178,10 @@ class MainFrame(wx.Frame):
         file_name = os.path.basename(file_path)
         name, ext = os.path.splitext(file_name)
 
-        self.f_img_panel.save_data(os.path.join(file_dir, f'{name}.dat'))
-        self.f_fft_img_panel.save_data(os.path.join(file_dir, f'{name}-FFT.dat'))
-        self.a_img_panel.save_data(os.path.join(file_dir, f'F-{name}.dat'))
-        self.a_fft_img_panel.save_data(os.path.join(file_dir, f'F-{name}-FFT.dat'))
+        self.f_img_panel.save_data(os.path.join(file_dir, '%s.dat' % name))
+        self.f_fft_img_panel.save_data(os.path.join(file_dir, '%s-FFT.dat' % name))
+        self.a_img_panel.save_data(os.path.join(file_dir, 'F-%s.dat' % name))
+        self.a_fft_img_panel.save_data(os.path.join(file_dir, 'F-%s-FFT.dat' % name))
 
         # todo: save temperature to file
         self.param_panel.set_project_name(name)
@@ -201,7 +201,7 @@ class MainFrame(wx.Frame):
         self._sample_len -= n
         if self._sample_len == 0:
             self.on_data_receive_end()
-            self.SetStatusText(f"Sampling end at {datetime.now():%Y-%m-%d %H:%M:%S}")
+            self.SetStatusText('Sampling end at %s' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
     def on_about(self, event):
         wx.MessageBox("This is a wxPython Hello World sample",
