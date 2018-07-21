@@ -170,3 +170,9 @@ class ParamPanel(wx.Panel):
 
     def set_project_name(self, text):
         self.st_project_name.SetLabelText(text)
+
+    def get_temperature(self):
+        return self.st_temperature.GetLabelText()
+
+    def set_temperature(self, text):
+        self.st_temperature.SetLabelText(text)

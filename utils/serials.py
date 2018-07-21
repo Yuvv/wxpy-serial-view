@@ -10,10 +10,6 @@ import struct
 
 import serial
 
-from serial.threaded import ReaderThread, LineReader
-import sys
-import traceback
-
 
 class LineReaderThread(threading.Thread):
     TERMINATOR = b'\r\n'
@@ -70,8 +66,8 @@ def handle_data(data):
     if len(data) != 6:
         return
     tunnel1_h, tunnel1_m, tunnel1_l, tunnel2_h, tunnel2_m, tunnel2_l = struct.unpack('bbbbbb', data)
-    logging.info(tunnel1_h, tunnel1_m, tunnel1_l,
-                 tunnel2_h, tunnel2_m, tunnel2_l)
+    logging.debug(tunnel1_h, tunnel1_m, tunnel1_l,
+                  tunnel2_h, tunnel2_m, tunnel2_l)
 
 
 def read_from_serial_port(ser, handler):

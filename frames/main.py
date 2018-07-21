@@ -71,9 +71,6 @@ class MainFrame(wx.Frame):
         ser = serial.Serial(port=settings.SERIAL_PORT, baudrate=settings.SERIAL_BAUD_RATE, timeout=1)
         self.listener = LineReaderThread(ser, self.on_data_received)
         self.listener.start()
-        # self.listener = start_a_listener(self.on_data_received,
-        #                                  port=settings.SERIAL_PORT,
-        #                                  baudrate=settings.SERIAL_BAUD_RATE)
         logging.info('serial started')
 
         self.SetSizerAndFit(box)
@@ -135,11 +132,11 @@ class MainFrame(wx.Frame):
             return
         t1_h, t1_m, t1_l, t2_h, t2_m, t2_l = struct.unpack('bbbbbb', data)
         logging.info('data: %d, %d, %d, %d, %d, %d', t1_h, t1_m, t1_l, t2_h, t2_m, t2_l)
-        t1_data = (t1_h & 0x7F < 16) + (t1_m < 8) + t1_l
+        t1_data = (t1_h & 0x7F << 16) + (t1_m << 8) + t1_l
         t1_data = t1_data * 2.5 / (2**23)
         if (t1_h & 0x80) > 0:
             t1_data = -t1_data
-        t2_data = (t2_h & 0x7F < 16) + (t2_m < 8) + t2_l
+        t2_data = (t2_h & 0x7F << 16) + (t2_m << 8) + t2_l
         t2_data = t2_data * 2.5 / (2 ** 23)
         if (t2_h & 0x80) > 0:
             t2_data = -t2_data
@@ -154,19 +151,13 @@ class MainFrame(wx.Frame):
     def on_data_receive_end(self):
         sample_len = self.param_panel.get_sample_len()
         f_data = [self.f_queue.get_nowait() + self._f_calibration for _ in range(sample_len)]
-        f_data_fft = np.fft.rfft(f_data)
+        f_data_fft = np.abs(np.fft.rfft(f_data))
         a_data = [self.a_queue.get_nowait() + self._a_calibration for _ in range(sample_len)]
-        a_data_fft = np.fft.rfft(a_data)
+        a_data_fft = np.abs(np.fft.rfft(a_data))
         self.f_img_panel.update_image(f_data)
-        if np.iscomplexobj(f_data_fft):
-            self.f_fft_img_panel.update_image([d.real for d in f_data_fft])
-        else:
-            self.f_fft_img_panel.update_image(f_data_fft[:self._sample_len // 2])
-        self.a_img_panel.update_image(a_data)
-        if np.iscomplexobj(a_data_fft):
-            self.a_fft_img_panel.update_image([d.real for d in a_data_fft])
-        else:
-            self.a_fft_img_panel.update_image(a_data_fft[:self._sample_len // 2])
+        self.f_fft_img_panel.update_image(f_data_fft)
+        self.a_img_panel.update_image(a_data_fft)
+        self.a_fft_img_panel.update_image(a_data_fft)
 
     def on_save_data(self, event):
         file_path = wx.SaveFileSelector(what='Where to save', extension='.dat',

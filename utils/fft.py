@@ -9,7 +9,7 @@ import io
 import matplotlib.pyplot as plt
 
 
-def draw_image(arr, x_label=None, y_label=None, title=None):
+def draw_image(arr, x_label=None, y_label=None, p_title=None):
     fig = plt.gcf()
     fig.set_figwidth(4)
     fig.set_figheight(3)
@@ -20,8 +20,8 @@ def draw_image(arr, x_label=None, y_label=None, title=None):
         plt.xlabel(x_label)
     if y_label:
         plt.ylabel(y_label)
-    if title:
-        plt.title(title)
+    if p_title:
+        plt.title(p_title)
     image_bytes = io.BytesIO()
     fig.savefig(image_bytes)
     image_bytes.seek(0)
