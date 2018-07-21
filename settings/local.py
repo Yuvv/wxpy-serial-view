@@ -7,4 +7,4 @@
 
 DEBUG = True
 
-SERIAL_PORT = 'COM5'
+SERIAL_PORT = 'COM3'

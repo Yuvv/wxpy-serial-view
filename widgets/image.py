@@ -77,7 +77,7 @@ class ImagePanel(wx.Panel):
 
     def update_image(self, data):
         self._data = data
-        img_bytes = draw_image(data, self._x_label, self._y_label, self._data)
+        img_bytes = draw_image(data, self._x_label, self._y_label)
         img = wx.Image(img_bytes)
         bitmap = img.ConvertToBitmap()
         self.bmp.SetBitmap(bitmap)

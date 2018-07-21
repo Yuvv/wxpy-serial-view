@@ -87,14 +87,20 @@ class ParamPanel(wx.Panel):
         self.st_project_name.SetFont(lg_font)
 
         lg_font.PointSize -= 2
-        st_sample_rate = wx.StaticText(parent=self, label='采样率：%s' % settings.SERIAL_BAUD_RATE,
+        st_sample_rate = wx.StaticText(parent=self, label='采样率：',
                                        pos=(self.padding, st_project_name.GetRect().Bottom + self.padding))
         st_sample_rate.SetFont(lg_font)
+        self.tc_sample_rate = wx.TextCtrl(parent=self, value=str(settings.SAMPLE_RATE),
+                                          size=(100, 28), validator=NumberValidator(min_value=1),
+                                          pos=(self.padding + st_sample_rate.GetSize()[0],
+                                               st_project_name.GetPosition()[1] +
+                                               st_project_name.GetSize()[1] + self.padding - 2))
+        self.tc_sample_rate.SetFont(lg_font)
 
         st_sample_len = wx.StaticText(parent=self, label='采样长度：',
                                       pos=(self.padding, st_sample_rate.GetRect().Bottom + self.padding))
         st_sample_len.SetFont(lg_font)
-        self.tc_sample_len = wx.TextCtrl(parent=self, value=str(settings.SERIAL_SAMPLE_LEN),
+        self.tc_sample_len = wx.TextCtrl(parent=self, value=str(settings.SAMPLE_LEN),
                                          size=(100, 28), validator=NumberValidator(min_value=1),
                                          pos=(self.padding + st_sample_len.GetSize()[0],
                                               st_sample_rate.GetPosition()[1] +
@@ -136,16 +142,20 @@ class ParamPanel(wx.Panel):
         self.Bind(wx.EVT_BUTTON, self.on_set, self.btn_ok, id=wx.ID_OK)
 
     def on_set(self, event):
+        sample_rate = self.get_sample_rate()
         sample_len = self.get_sample_len()
         f_calibration = self.get_f_calibration()
         a_calibration = self.get_a_calibration()
 
-        self.GetParent().set_setting_values(sample_len,
-                                            f_calibration,
-                                            a_calibration)
-        self.GetParent().SetStatusText("Start sampling at %s" % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        parent = self.GetParent()
+        parent.set_setting_values(sample_len, f_calibration, a_calibration)
+        parent.SetStatusText("Start sampling at %s" % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         logging.info('Set sample_len=%d, f_calibration=%f, a_a_calibration=%f',
                      sample_len, f_calibration, a_calibration)
+
+        # 发送采集命令
+        parent.send_sample_command(sample_rate)
+        logging.info('Send sample rate: %d', sample_rate)
 
     def get_sample_len(self):
         return int(self.tc_sample_len.GetValue())
@@ -176,3 +186,9 @@ class ParamPanel(wx.Panel):
 
     def set_temperature(self, text):
         self.st_temperature.SetLabelText(text)
+
+    def get_sample_rate(self):
+        return int(self.tc_sample_rate.GetValue())
+
+    def set_sample_rate(self, rate):
+        self.tc_sample_rate.SetValidator(rate)
