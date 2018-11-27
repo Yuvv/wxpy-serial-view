@@ -4,9 +4,9 @@
 # @Author : Yuvv
 # @Date   : 2018/7/14
 
+import collections
 import logging
 import os
-import collections
 import socket
 import struct
 from datetime import datetime
@@ -42,10 +42,11 @@ class MainFrame(wx.Frame):
         self.CreateStatusBar()
         self.SetStatusText('采样程序')
 
-        self.f_queue = collections.deque(maxlen=settings.QUEUE_SIZE)
-        self.a_queue = collections.deque(maxlen=settings.QUEUE_SIZE)
+        self.f_queue = collections.deque(maxlen=settings.SAMPLE_LEN)
+        self.a_queue = collections.deque(maxlen=settings.SAMPLE_LEN)
         self.tcp_client = None
         self._sample_len = settings.SAMPLE_LEN
+        self._f_threshold = settings.F_THRESHOLD
         self._f_calibration = 0
         self._a_calibration = 0
         ser = serial.Serial(port=settings.SERIAL_PORT, baudrate=settings.SERIAL_BAUD_RATE, timeout=1)
@@ -87,17 +88,17 @@ class MainFrame(wx.Frame):
 
     def on_data_received(self, data):
         if self._sample_len <= 0:
-            return
+            return False
         if len(data) != 4:
             logging.error('data not 4 bytes!')
-            return
+            return False
         t1_h, t1_l, t2_h, t2_l = struct.unpack('BBBB', data)
         t1_data = ((t1_h & 0x7F) << 8) + t1_l
-        t1_data = t1_data * 2.5 / (2 ** 15)
+        t1_data = np.round(t1_data * 2.5 / (2 ** 15), settings.NUM_DECIMALS)
         if (t1_h & 0x80) > 0:
             t1_data = -t1_data
         t2_data = ((t2_h & 0x7F) << 8) + t2_l
-        t2_data = t2_data * 2.5 / (2 ** 15)
+        t2_data = np.round(t2_data * 2.5 / (2 ** 15), settings.NUM_DECIMALS)
         if (t2_h & 0x80) > 0:
             t2_data = -t2_data
         logging.debug('tunnel1: %f, tunnel2: %f', t1_data, t2_data)
@@ -105,12 +106,15 @@ class MainFrame(wx.Frame):
         self.f_queue.append(t1_data)
         # tunnel 2
         self.a_queue.append(t2_data)
-        # sample_len - 1
-        self.decrease_sample_len()
+        if t1_data > self._f_threshold:
+            return True
+        return False
 
     def on_data_receive_end(self):
         f_data = [each + self._f_calibration for each in self.f_queue]
         a_data = [each + self._a_calibration for each in self.a_queue]
+        f_data_avg = np.round(np.average(f_data[:-self._sample_len - 1]), settings.NUM_DECIMALS)
+        self.param_panel.set_f_threshold_ref(f_data_avg)
 
         self.img_panel.update_image(f_data, a_data)
 
@@ -132,10 +136,13 @@ class MainFrame(wx.Frame):
         # todo: save temperature to file
         self.param_panel.set_project_name(name)
 
-    def set_setting_values(self, sample_len, f_calibration, a_calibration):
-        self._sample_len = sample_len
+    def set_setting_values(self, sample_len, f_calibration, a_calibration, f_threshold):
+        self.a_queue = collections.deque(maxlen=sample_len)
+        self.f_queue = collections.deque(maxlen=sample_len)
+        self._sample_len = int(sample_len * 0.9)
         self._f_calibration = f_calibration
         self._a_calibration = a_calibration
+        self._f_threshold = f_threshold + f_calibration
 
     def start_listener(self):
         self.serial_listener.start()
@@ -150,8 +157,8 @@ class MainFrame(wx.Frame):
             self.SetStatusText('Sampling end at %s' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
     def on_about(self, event):
-        wx.MessageBox("This is a wxPython Hello World sample",
-                      "About Hello World 2",
+        wx.MessageBox("玻璃幕墙数据采集程序",
+                      "About Serial",
                       wx.OK | wx.ICON_INFORMATION)
 
     def handle_client(self, sock: socket.socket):
@@ -174,8 +181,13 @@ class MainFrame(wx.Frame):
 
         logging.debug('开始接收数据....')
 
+        flag = False
         for i in range(self._sample_len):
             data = self.tcp_client.recv(4)
-            self.on_data_received(data)
+            cur_flag = self.on_data_received(data)
+            flag = flag or cur_flag
+            if flag:
+                # sample_len - 1
+                self.decrease_sample_len()
 
         logging.debug('数据接收完毕！')
