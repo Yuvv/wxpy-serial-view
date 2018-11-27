@@ -20,10 +20,6 @@ def start_main_frame():
 
     frame = MainFrame(None, title='Serial')
 
-    # arr = do_fft(range(1, 9))
-    # img_file = draw_image(arr)
-    # img = wx.Image(img_file)
-    # panel = ImagePanel(img, parent=frame)
     frame.Show()
 
     app.MainLoop()

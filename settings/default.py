@@ -10,8 +10,6 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DEBUG = False
 
-# 数据队列长度
-QUEUE_SIZE = 5000
 # 图片更新时间(毫秒)
 UPDATE_INTERVAL = 5000
 
@@ -22,6 +20,11 @@ SERIAL_BAUD_RATE = 115200
 # 采样相关
 SAMPLE_RATE = 5000
 SAMPLE_LEN = 4096
+NUM_DECIMALS = 4
+F_THRESHOLD = 2.08
+
+# 绘图相关
+FONT_SIZE = 8
 
 # TCP 相关配置
 TCP_HOST = '0.0.0.0'
@@ -67,9 +70,3 @@ LOGGING = {
         },
     },
 }
-
-
-try:
-    from .local import *
-except ImportError:
-    pass
