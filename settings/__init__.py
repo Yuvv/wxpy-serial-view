@@ -5,4 +5,7 @@
 # @Date   : 2018/7/14
 
 
-from .default import *
+try:
+    from .local import *
+except ImportError:
+    from .default import *

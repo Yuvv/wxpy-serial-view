@@ -4,40 +4,42 @@
 # @Author : Yuvv
 # @Date   : 2018/7/14
 
-import logging
-
 import wx
+import os
+import numpy as np
 
-from utils.fft import draw_image
+from utils.fft import draw_four_image
 
 
 class ImagePanel(wx.Panel):
-    def __init__(self, image: wx.Image, x_label=None, y_label=None, title=None, **kwargs):
+    padding = 10
+
+    def __init__(self, image: wx.Image = None, **kwargs):
         wx.Panel.__init__(self, **kwargs)
-        self.padding = 10
-        self._x_label = x_label
-        self._y_label = y_label
-        self._title = title
-        self._data = None
+        self._f_data = None
+        self._a_data = None
+        self._f_fft_data = None
+        self._a_fft_data = None
+        self.set_default_data()
 
-        lg_font = self.GetFont()
-        lg_font.PointSize += 5
-        lg_font = lg_font.Bold()
-        st_title = wx.StaticText(parent=self, label=self.GetName(),
-                                 pos=(self.padding, self.padding))
-        st_title.SetFont(lg_font)
-
-        bitmap = image.ConvertToBitmap()
+        bitmap = self.get_data_bitmap() if image is None else image.ConvertToBitmap()
         self.bmp = wx.StaticBitmap(parent=self, bitmap=bitmap,
-                                   pos=(self.padding, st_title.GetSize()[1] + self.padding * 2))
+                                   pos=(self.padding, self.padding))
 
         self.SetMinSize((bitmap.GetWidth() + self.padding * 2,
-                         st_title.GetSize()[1] + bitmap.GetHeight() + self.padding * 3))
+                         bitmap.GetHeight() + self.padding * 2))
 
         self.Bind(wx.EVT_MOUSEWHEEL, self.on_mousewheel_scroll, self.bmp)
 
-    def get_data(self):
-        return self._data
+    def set_default_data(self):
+        time = np.linspace(0, np.pi * 10, 1024)
+        self._f_data = np.sin(time)
+        self._a_data = np.cos(time)
+        self._fft_transform()
+
+    def _fft_transform(self):
+        self._f_fft_data = np.abs(np.fft.rfft(self._f_data))
+        self._a_fft_data = np.abs(np.fft.rfft(self._a_data))
 
     def scale_bitmap(self, img: wx.Image):
         def get_new_size(_ow, _oh, _w, _h, on_w):
@@ -75,18 +77,26 @@ class ImagePanel(wx.Panel):
         bitmap = wx.BitmapFromImage(img)
         return bitmap
 
-    def update_image(self, data):
-        self._data = data
-        img_bytes = draw_image(data, self._x_label, self._y_label)
+    def get_data_bitmap(self):
+        img_bytes = draw_four_image(self._f_data, self._f_fft_data,
+                                    self._a_data, self._a_fft_data)
         img = wx.Image(img_bytes)
         bitmap = img.ConvertToBitmap()
-        self.bmp.SetBitmap(bitmap)
-        logging.debug('%s\'s data updated with %s', self.GetName(), str(data))
+        return bitmap
 
-    def save_data(self, filepath):
-        with open(filepath, 'w') as f:
-            for d in self._data:
-                f.write(str(d) + '\n')
+    def update_image(self, f_data, a_data):
+        self._f_data = f_data
+        self._a_data = a_data
+        self._fft_transform()
+
+        bitmap = self.get_data_bitmap()
+        self.bmp.SetBitmap(bitmap)
+
+    def save_data(self, file_dir, name):
+        np.savetxt(os.path.join(file_dir, '%s.dat' % name), self._f_data)
+        np.savetxt(os.path.join(file_dir, '%s-FFT.dat' % name), self._f_fft_data)
+        np.savetxt(os.path.join(file_dir, 'F-%s.dat' % name), self._a_data)
+        np.savetxt(os.path.join(file_dir, 'F-%s-FFT.dat' % name), self._a_fft_data)
 
     def on_mousewheel_scroll(self, event):
         """
