@@ -4,9 +4,9 @@
 # @Author : Yuvv
 # @Date   : 2018/7/14
 
+import collections
 import logging
 import os
-import queue
 import socket
 import struct
 from datetime import datetime
@@ -25,34 +25,15 @@ class MainFrame(wx.Frame):
 
     def __init__(self, *args, **kw):
         super(MainFrame, self).__init__(*args, **kw)
-        self.SetIcon(wx.Icon(os.path.join(settings.BASE_DIR, 'resources/favicon.ico')))
 
-        default_image = wx.Image(os.path.join(settings.BASE_DIR, 'resources/img/default.jpg'))
-
-        self.f_img_panel = ImagePanel(default_image, y_label='V',
-                                      parent=self, name='力')
-        self.f_fft_img_panel = ImagePanel(default_image, x_label='Freq',
-                                          parent=self, name='FFT-力')
-        self.a_img_panel = ImagePanel(default_image, y_label='V',
-                                      parent=self, name='加速度')
-        self.a_fft_img_panel = ImagePanel(default_image, x_label='Freq',
-                                          parent=self, name='FFT-加速度')
+        self.img_panel = ImagePanel(parent=self)
+        self.param_panel = ParamPanel(parent=self)
 
         box = wx.BoxSizer(wx.HORIZONTAL)
         box.AddStretchSpacer()
-        grid_box = wx.GridSizer(rows=2, cols=2, vgap=0, hgap=0)
-        sidebar_box = wx.BoxSizer(wx.VERTICAL)
 
-        grid_box.Add(self.f_img_panel, border=5)
-        grid_box.Add(self.f_fft_img_panel, border=5)
-        grid_box.Add(self.a_img_panel, border=5)
-        grid_box.Add(self.a_fft_img_panel, border=5)
-
-        self.param_panel = ParamPanel(parent=self)
-        sidebar_box.Add(self.param_panel, border=5)
-
-        box.Add(grid_box, 0, wx.EXPAND, border=5)
-        box.Add(sidebar_box, 0, wx.EXPAND, border=5)
+        box.Add(self.img_panel, 0, wx.EXPAND, border=5)
+        box.Add(self.param_panel, 0, wx.EXPAND, border=5)
 
         # create a menu bar
         self.make_menu_bar()
@@ -61,10 +42,11 @@ class MainFrame(wx.Frame):
         self.CreateStatusBar()
         self.SetStatusText('采样程序')
 
-        self.f_queue = queue.Queue(settings.QUEUE_SIZE)
-        self.a_queue = queue.Queue(settings.QUEUE_SIZE)
+        self.f_queue = collections.deque(maxlen=settings.SAMPLE_LEN)
+        self.a_queue = collections.deque(maxlen=settings.SAMPLE_LEN)
         self.tcp_client = None
         self._sample_len = settings.SAMPLE_LEN
+        self._f_threshold = settings.F_THRESHOLD
         self._f_calibration = 0
         self._a_calibration = 0
         ser = serial.Serial(port=settings.SERIAL_PORT, baudrate=settings.SERIAL_BAUD_RATE, timeout=1)
@@ -106,43 +88,38 @@ class MainFrame(wx.Frame):
 
     def on_data_received(self, data):
         if self._sample_len <= 0:
-            return
-        if len(data) != 6:
-            logging.error('data not 6 bytes!')
-            return
-        t1_h, t1_m, t1_l, t2_h, t2_m, t2_l = struct.unpack('BBBBBB', data)
-        logging.info('data: %d, %d, %d, %d, %d, %d', t1_h, t1_m, t1_l, t2_h, t2_m, t2_l)
-        t1_data = (t1_h & 0x7F << 16) + (t1_m << 8) + t1_l
-        t1_data = t1_data * 2.5 / (2**23)
+            return False
+        if len(data) != 4:
+            logging.error('data not 4 bytes!')
+            return False
+        t1_h, t1_l, t2_h, t2_l = struct.unpack('BBBB', data)
+        t1_data = ((t1_h & 0x7F) << 8) + t1_l
+        t1_data = np.round(t1_data * 2.5 / (2 ** 15), settings.NUM_DECIMALS)
         if (t1_h & 0x80) > 0:
             t1_data = -t1_data
-        t2_data = (t2_h & 0x7F << 16) + (t2_m << 8) + t2_l
-        t2_data = t2_data * 2.5 / (2 ** 23)
+        t2_data = ((t2_h & 0x7F) << 8) + t2_l
+        t2_data = np.round(t2_data * 2.5 / (2 ** 15), settings.NUM_DECIMALS)
         if (t2_h & 0x80) > 0:
             t2_data = -t2_data
-        logging.info('tunnel1: %f, tunnel2: %f', t1_data, t2_data)
+        logging.debug('tunnel1: %f, tunnel2: %f', t1_data, t2_data)
         # tunnel 1
-        self.f_queue.put_nowait(t1_data)
+        self.f_queue.append(t1_data)
         # tunnel 2
-        self.a_queue.put_nowait(t2_data)
-        # sample_len - 1
-        self.decrease_sample_len()
+        self.a_queue.append(t2_data)
+        if t1_data > self._f_threshold:
+            return True
+        return False
 
     def on_data_receive_end(self):
-        sample_len = self.param_panel.get_sample_len()
-        f_data = [self.f_queue.get_nowait() + self._f_calibration for _ in range(sample_len)]
-        f_data_fft = np.abs(np.fft.rfft(f_data))
-        a_data = [self.a_queue.get_nowait() + self._a_calibration for _ in range(sample_len)]
-        a_data_fft = np.abs(np.fft.rfft(a_data))
-        self.f_img_panel.update_image(f_data)
-        self.f_fft_img_panel.update_image(f_data_fft)
-        self.a_img_panel.update_image(a_data_fft)
-        self.a_fft_img_panel.update_image(a_data_fft)
+        f_data = [each + self._f_calibration for each in self.f_queue]
+        a_data = [each + self._a_calibration for each in self.a_queue]
+        f_data_avg = np.round(np.average(f_data[:-self._sample_len - 1]), settings.NUM_DECIMALS)
+        self.param_panel.set_f_threshold_ref(f_data_avg)
 
-        with self.a_queue.mutex:
-            self.a_queue.queue.clear()
-        with self.f_queue.mutex:
-            self.f_queue.queue.clear()
+        self.img_panel.update_image(f_data, a_data)
+
+        self.a_queue.clear()
+        self.f_queue.clear()
 
     def on_save_data(self, event):
         file_path = wx.SaveFileSelector(what='Where to save', extension='.dat',
@@ -154,18 +131,18 @@ class MainFrame(wx.Frame):
         file_name = os.path.basename(file_path)
         name, ext = os.path.splitext(file_name)
 
-        self.f_img_panel.save_data(os.path.join(file_dir, '%s.dat' % name))
-        self.f_fft_img_panel.save_data(os.path.join(file_dir, '%s-FFT.dat' % name))
-        self.a_img_panel.save_data(os.path.join(file_dir, 'F-%s.dat' % name))
-        self.a_fft_img_panel.save_data(os.path.join(file_dir, 'F-%s-FFT.dat' % name))
+        self.img_panel.save_data(file_dir, name)
 
         # todo: save temperature to file
         self.param_panel.set_project_name(name)
 
-    def set_setting_values(self, sample_len, f_calibration, a_calibration):
-        self._sample_len = sample_len
+    def set_setting_values(self, sample_len, f_calibration, a_calibration, f_threshold):
+        self.a_queue = collections.deque(maxlen=sample_len)
+        self.f_queue = collections.deque(maxlen=sample_len)
+        self._sample_len = int(sample_len * 0.9)
         self._f_calibration = f_calibration
         self._a_calibration = a_calibration
+        self._f_threshold = f_threshold + f_calibration
 
     def start_listener(self):
         self.serial_listener.start()
@@ -180,8 +157,8 @@ class MainFrame(wx.Frame):
             self.SetStatusText('Sampling end at %s' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
     def on_about(self, event):
-        wx.MessageBox("This is a wxPython Hello World sample",
-                      "About Hello World 2",
+        wx.MessageBox("玻璃幕墙数据采集程序",
+                      "About Serial",
                       wx.OK | wx.ICON_INFORMATION)
 
     def handle_client(self, sock: socket.socket):
@@ -204,8 +181,13 @@ class MainFrame(wx.Frame):
 
         logging.debug('开始接收数据....')
 
+        flag = False
         for i in range(self._sample_len):
-            data = self.tcp_client.recv(6)
-            self.on_data_received(data)
+            data = self.tcp_client.recv(4)
+            cur_flag = self.on_data_received(data)
+            flag = flag or cur_flag
+            if flag:
+                # sample_len - 1
+                self.decrease_sample_len()
 
         logging.debug('数据接收完毕！')
